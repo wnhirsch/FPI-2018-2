@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+<<<<<<< HEAD
   <component name="ChangeListManager">
     <list default="true" id="5f59c9c4-4045-4d77-8684-070f9b8fc855" name="Default Changelist" comment="">
       <change afterPath="$PROJECT_DIR$/src/com/wnhirsch/ImageManip.java" afterDir="false" />
@@ -87,12 +88,15 @@
       </list>
     </option>
   </component>
+=======
+>>>>>>> origin/master
   <component name="ProjectFrameBounds" extendedState="6">
     <option name="x" value="-8" />
     <option name="y" value="-8" />
     <option name="width" value="1382" />
     <option name="height" value="744" />
   </component>
+<<<<<<< HEAD
   <component name="ProjectLevelVcsManager" settingsEditedManually="true">
     <ConfirmationsSetting value="2" id="Add" />
   </component>
@@ -305,4 +309,6 @@
       </state>
     </states>
   </component>
+=======
+>>>>>>> origin/master
 </project>
