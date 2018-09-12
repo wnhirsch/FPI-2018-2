@@ -6,10 +6,9 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 
-public class ImageManip {
+class ImageManip {
 
-    private final int SHADE_LIMIT  = 255;
-//    private final int RGB_LIMIT    = 0xFFFFFF;
+    private final int SHADE_LIMIT  = 0xFF;
 
     private final double RED_LUM   = 0.299;
     private final double GREEN_LUM = 0.587;
@@ -88,18 +87,29 @@ public class ImageManip {
         BufferedImage newImage = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
 
         // para cada pixel da imagem...
-        for(int i = 0; i < img.getHeight(); i++)
-            for(int j = 0; j < img.getWidth(); j++){
+        for(int x = 0; x < img.getWidth(); x++)
+            for(int y = 0; y < img.getHeight(); y++){
                 // le uma cor da imagem
-                Color c = new Color(img.getRGB(j, i));
+                Color c = new Color(img.getRGB(x, y));
                 // calcula o valor da luminancia
                 int lm = (int) (RED_LUM*c.getRed() + GREEN_LUM*c.getGreen() + BLUE_LUM*c.getBlue());
                 lm = validateRGB(lm);
                 // atribui essa cor para a nova imagem
-                int newColor = lm + Integer.rotateLeft(lm,Byte.SIZE) + Integer.rotateLeft(lm,Byte.SIZE*2);
-                newImage.setRGB(j, i, newColor);
+                int newColor = lm + (lm << 8) + (lm << 16);
+                newImage.setRGB(x, y, newColor);
             }
 
+        return newImage;
+    }
+
+    public BufferedImage quantizeImage(BufferedImage img, int shades) {
+        double range = ((double) SHADE_LIMIT+1) / shades;
+        BufferedImage newImage = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
+        for(int x = 0; x < img.getWidth(); x++)
+            for(int y = 0; y < img.getHeight(); y++){
+                int color = (int) ((img.getRGB(x, y) >> 16) / range);
+                newImage.setRGB(x, y, color + (color << 8) + (color << 16));
+            }
         return newImage;
     }
 
@@ -115,39 +125,4 @@ public class ImageManip {
             return cor;
         }
     }
-
-
-
-
-
-
-//    public BufferedImage negative(BufferedImage img){
-//        BufferedImage aux = new BufferedImage(img.getWidth(), img.getHeight(), img.getType());
-//        for(int i = 0; i < img.getHeight(); i++)
-//            for(int j = 0; j < img.getWidth(); j++){
-//                aux.setRGB(j, i, RGB_LIMIT - img.getRGB(j, i));
-//            }
-//        return aux;
-//    }
-//
-//    public BufferedImage histogramEqualization(BufferedImage img) {
-//        Histogram hist = new Histogram(img);
-//        Histogram histCum = new Histogram();
-//        float alpha = ((float) SHADE_LIMIT) / (img.getWidth() * img.getHeight());
-//
-//        histCum.setFreq(0,(int) alpha*hist.getFreq(0));
-//        for(int i = 1; i <= SHADE_LIMIT; i++){
-//            histCum.setFreq(i, (int) ( histCum.getFreq(i-1) + alpha*hist.getFreq(i)) );
-//        }
-//
-//        BufferedImage aux = new BufferedImage(img.getWidth(), img.getHeight(), img.getType());
-//        for(int i = 0; i < img.getHeight(); i++)
-//            for(int j = 0; j < img.getWidth(); j++){
-//                int lm = histCum.getFreq(img.getRGB(j,i) & SHADE_LIMIT);
-//                aux.setRGB(j, i,lm + Integer.rotateLeft(lm,Byte.SIZE) + Integer.rotateLeft(lm,Byte.SIZE*2));
-//            }
-//        return aux;
-//    }
-
-
 }
