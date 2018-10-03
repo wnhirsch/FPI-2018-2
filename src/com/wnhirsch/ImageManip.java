@@ -1,7 +1,6 @@
 package com.wnhirsch;
 
 import javax.imageio.ImageIO;
-import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -13,6 +12,36 @@ class ImageManip {
     private final double RED_LUM   = 0.299;
     private final double GREEN_LUM = 0.587;
     private final double BLUE_LUM  = 0.114;
+    
+    // Convolution Kernels
+    public final double[][] gaussiano = new double[][] {{0.0625, 0.125, 0.0625},
+                                                        {0.125,  0.25,  0.125 },
+                                                        {0.0625, 0.125, 0.0625}};
+    
+    public final double[][] laplaciano = new double[][] {{0, -1,  0},
+                                                        {-1, +4, -1},
+                                                        { 0, -1,  0}};
+    
+    public final double[][] genPH = new double[][]      {{-1, -1, -1},
+                                                        { -1, +8, -1},
+                                                        { -1, -1, -1}};
+    
+    public final double[][] preHX = new double[][]      {{-1, 0, 1},
+                                                        { -1, 0, 1},
+                                                        { -1, 0, 1}};
+    
+    public final double[][] preHYHX = new double[][]    {{-1, -1, -1},
+                                                        {  0,  0,  0},
+                                                        {  1,  1,  1}};
+    
+    public final double[][] sobelHX = new double[][]    {{-1, 0, 1},
+                                                        { -2, 0, 2},
+                                                        { -1, 0, 1}};
+    
+    public final double[][] sobelHY = new double[][]    {{-1, -2, -1},
+                                                        {  0,  0,  0},
+                                                        {  1,  2,  1}};
+
 
 
     public BufferedImage readImage(String filePath){
@@ -90,13 +119,13 @@ class ImageManip {
         for(int x = 0; x < img.getWidth(); x++)
             for(int y = 0; y < img.getHeight(); y++){
                 // le uma cor da imagem
-                Color c = new Color(img.getRGB(x, y));
+                Pixel p = new Pixel(img.getRGB(x, y), true);
                 // calcula o valor da luminancia
-                int lm = (int) (RED_LUM*c.getRed() + GREEN_LUM*c.getGreen() + BLUE_LUM*c.getBlue());
-                lm = validateRGB(lm);
+                int lm = (int) (RED_LUM*p.red + GREEN_LUM*p.green + BLUE_LUM*p.blue);
+                p = new Pixel(lm, false);
+                p.validateRGB();
                 // atribui essa cor para a nova imagem
-                int newColor = lm + (lm << 8) + (lm << 16);
-                newImage.setRGB(x, y, newColor);
+                newImage.setRGB(x, y, p.getRGB());
             }
 
         return newImage;
@@ -112,17 +141,191 @@ class ImageManip {
             }
         return newImage;
     }
+    
+    public BufferedImage brightnessInc(BufferedImage img, int intensity) {
+        BufferedImage newImage = new BufferedImage(img.getWidth(), img.getHeight(), img.getType());
+        // Para cada pixel da imagem
+        for(int x = 0; x < img.getWidth(); x++){
+            for(int y = 0; y < img.getHeight(); y++){
+                // Le uma cor e soma a intensidade do brilho
+                Pixel p = new Pixel(img.getRGB(x, y), true);
+                p.red += intensity;
+                p.blue += intensity;
+                p.green += intensity;
+                // Valida o valor final e salva na imagem
+                p.validateRGB();
+                newImage.setRGB(x, y, p.getRGB());
+            }
+        }
+        return newImage;
+    }
 
-    private int validateRGB(int cor){
-        // Caso quebre o limite (0 <= cor <= 255) atribui o mais próximo
-        if(cor > SHADE_LIMIT){
-            return SHADE_LIMIT;
+    public BufferedImage contrastInc(BufferedImage img, double intensity) {
+        BufferedImage newImage = new BufferedImage(img.getWidth(), img.getHeight(), img.getType());
+        // Para cada pixel da imagem
+        for(int x = 0; x < img.getWidth(); x++){
+            for(int y = 0; y < img.getHeight(); y++){
+                // Le uma cor e multiplica a intensidade do contraste
+                Pixel p = new Pixel(img.getRGB(x, y), true);
+                p.red *= intensity;
+                p.blue *= intensity;
+                p.green *= intensity;
+                // Valida o valor final e salva na imagem
+                p.validateRGB();
+                newImage.setRGB(x, y, p.getRGB());
+            }
         }
-        else if(cor < 0){
-            return 0;
+        return newImage;
+    }
+        
+    public BufferedImage negativeImg(BufferedImage img) {
+        BufferedImage newImage = new BufferedImage(img.getWidth(), img.getHeight(), img.getType());
+        // Para cada pixel da imagem
+        for(int x = 0; x < img.getWidth(); x++){
+            for(int y = 0; y < img.getHeight(); y++){
+                // Le uma cor e inverte seu valor
+                Pixel p = new Pixel(img.getRGB(x, y), true);
+                p.red = 255 - p.red;
+                p.blue = 255 - p.blue;
+                p.green = 255 - p.green;
+                // Salva na imagem
+                newImage.setRGB(x, y, p.getRGB());
+            }
         }
-        else{
-            return cor;
+        return newImage;
+    }
+    
+    public BufferedImage reduceImg(BufferedImage img, int sx, int sy) {
+        // Calcula o novo tamanho da imagem reduzida
+        int newWidth = Math.floorDiv(img.getWidth(), sx);
+        int newHeight = Math.floorDiv(img.getHeight(), sy);
+        BufferedImage newImage = new BufferedImage(newWidth, newHeight, img.getType());
+        
+        // Para cada pixel na nova imagem
+        for(int x = 0; x < newWidth; x++){
+            for(int y = 0; y < newHeight; y++){
+                Pixel newColor = new Pixel(0, true);
+                // Calcula a média de cores de um retangulo sx por sy dentro da imagem antiga
+                for(int xold = x*sx; xold < (x+1)*sx && xold < img.getWidth(); xold++){
+                    for(int yold = y*sy; yold < (y+1)*sy && yold < img.getHeight(); yold++){
+                        newColor.sumColors(img.getRGB(xold, yold));
+                    }
+                }
+                // Armazena na nova imagem
+                newColor.divideColor(sx*sy);
+                newImage.setRGB(x, y, newColor.getRGB());
+            }
         }
+        return newImage;
+    }
+    
+    public BufferedImage enlargeImg(BufferedImage img) {
+        int sx = 2, sy = 2; // pré-definido
+        
+        // Calcula o novo tamanho da imagem ampliada
+        int newWidth = img.getWidth() * sx;
+        int newHeight = img.getHeight() * sy;
+        BufferedImage newImage = new BufferedImage(newWidth, newHeight, img.getType());
+        
+        // Percorre as linhas pares que estão parcialmente completas
+        for(int y = 0; y < newHeight; y+=2){
+            // E para cada pixel
+            for(int x = 0; x < newWidth; x++){
+                // Se for par simplesmente insere
+                if(x % 2 == 0) {
+                    newImage.setRGB(x, y, img.getRGB(x/2, y/2));
+                }
+                // Se for impar realiza a média dos dois pixels vizinhos
+                else if((x+1)/2 < img.getWidth()) {
+                    Pixel prevColor = new Pixel(img.getRGB((x-1)/2, y/2), true);
+                    prevColor.sumColors(img.getRGB((x+1)/2, y/2));
+                    prevColor.divideColor(2);
+                    newImage.setRGB(x, y, prevColor.getRGB());
+                }
+                else {
+                    newImage.setRGB(x, y, img.getRGB((x-1)/2, y/2));
+                }
+            }
+        }
+            
+        // Com isso a imagem tera as linhas pares preenchidas e as impares não
+        // Agora para cada coluna de pixels
+        for(int x = 0; x < newWidth; x++){
+            // de cada linha impar
+            for(int y = 1; y < newHeight; y+=2){
+                // Calcular a média das linhas pares vizinhas
+                if((y+1)/2 < img.getHeight()) {
+                    Pixel prevColor = new Pixel(img.getRGB(x/2, (y-1)/2), true);
+                    prevColor.sumColors(img.getRGB(x/2, (y+1)/2));
+                    prevColor.divideColor(2);
+                    newImage.setRGB(x, y, prevColor.getRGB());
+                }
+                else {
+                    newImage.setRGB(x, y, img.getRGB(x/2, (y-1)/2));
+                }
+            }
+        }
+        
+        return newImage;
+    }
+    
+    public BufferedImage clockwiseImg(BufferedImage img) {
+        BufferedImage newImage = new BufferedImage(img.getHeight(), img.getWidth(), img.getType());
+        // Para cada pixel da imagem
+        for(int x = 0; x < img.getWidth(); x++){
+            for(int y = 0; y < img.getHeight(); y++){
+                // Salva ele na posição 90 graus no sentido horário da original
+                newImage.setRGB(newImage.getWidth()-y-1, x, img.getRGB(x,y));
+            }
+        }
+        return newImage;
+    }
+    
+    public BufferedImage anticlockwiseImg(BufferedImage img) {
+        BufferedImage newImage = new BufferedImage(img.getHeight(), img.getWidth(), img.getType());
+        // Para cada pixel da imagem
+        for(int x = 0; x < img.getWidth(); x++){
+            for(int y = 0; y < img.getHeight(); y++){
+                // Salva ele na posição 90 graus no sentido anti-horário da original
+                newImage.setRGB(y, newImage.getHeight()-x-1, img.getRGB(x,y));
+            }
+        }
+        return newImage;
+    }
+    
+    public BufferedImage convolutionImg(BufferedImage img, double[][] kernel, boolean shouldSum) {
+        // Rotaciona a matriz do kernel em 180 graus
+        double[][] kernelRotated = new double[3][3];
+        for(int xk = 0; xk < 3; xk++){
+            for(int yk = 0; yk < 3; yk++){
+                kernelRotated[xk][yk] = kernel[3-xk-1][3-yk-1];
+            }
+        }
+            
+        BufferedImage newImage = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
+        // Para cada pixdel da imagem (ignorando as bordas)
+        for(int x = 1; x < img.getWidth()-1; x++){
+            for(int y = 1; y < img.getHeight()-1; y++){
+                int newColor = 0;
+                // Multiplica o kernel pelo pixel atual e seus vizinhos
+                for(int xk = -1; xk <= 1; xk++){
+                    for(int yk = -1; yk <= 1; yk++){
+                        newColor += kernelRotated[xk+1][yk+1] * (img.getRGB(x+xk, y+yk) & 0xFF);
+                    }
+                }
+                // Ajusta a soma
+                Pixel p = new Pixel(newColor, false);
+                if(shouldSum){
+                    p.red += 127;
+                    p.green += 127;
+                    p.blue += 127;
+                }
+                p.validateRGB();
+                // Armazena na imagem
+                newImage.setRGB(x, y, p.getRGB());
+            }
+        }
+        
+        return newImage;
     }
 }
